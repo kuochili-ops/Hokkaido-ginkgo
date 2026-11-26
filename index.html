@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>𓃥 白六・北海道大學銀杏並木大道 3D 紙雕光影盒</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  --bg: #120d09;
+  --ink: #f6e8ca;
+  --sub: #c9b88f;
+  --gold: #eab948;
+  --panel: rgba(24, 16, 10, 0.84);
+  --line: rgba(234, 185, 72, 0.32);
+}
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, #24180f 0%, var(--bg) 78%);
+  color: var(--ink);
+  font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  touch-action: none;
+}
+canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+canvas:active { cursor: grabbing; }
+
+/* 頂部標題 */
+header {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  left: 56px;
+  right: 56px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 5;
+  transition: opacity 0.4s ease;
+}
+header small {
+  display: block;
+  font-family: 'Noto Serif TC', serif;
+  letter-spacing: 0.16em;
+  color: #e9c98a;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.9;
+}
+header h1 {
+  margin: 3px 0 0;
+  font-family: 'Noto Serif TC', serif;
+  font-weight: 700;
+  font-size: clamp(17px, 4.6vw, 26px);
+  letter-spacing: 0.08em;
+  color: #f8ebd0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
+}
+
+/* 右上角設定切換按鈕（預設收合控制面板，最大化展示視野） */
+#toggle-ui {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  right: max(12px, env(safe-area-inset-right, 12px));
+  z-index: 12;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+#toggle-ui:active { transform: scale(0.92); }
+#toggle-ui.active { border-color: var(--gold); color: var(--gold); }
+
+/* 可收合控制抽屜 */
+#drawer {
+  position: fixed;
+  top: calc(max(12px, env(safe-area-inset-top, 12px)) + 50px);
+  right: max(12px, env(safe-area-inset-right, 12px));
+  width: min(300px, calc(100vw - 24px));
+  z-index: 11;
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transform-origin: top right;
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#drawer.collapsed {
+  opacity: 0;
+  transform: scale(0.92) translateY(-8px);
+  pointer-events: none;
+}
+
+.grp { display: flex; flex-direction: column; gap: 6px; }
+.grp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+.grp-head span.val {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.modes, .views {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+button.chip {
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 7px 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+button.chip:active { transform: scale(0.96); }
+button.chip.on {
+  border-color: var(--gold);
+  background: rgba(234, 185, 72, 0.22);
+  color: #fff6df;
+  font-weight: 500;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 24px;
+  cursor: pointer;
+  margin: 0;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, #e8b94a, #5c4b30);
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f5e5be;
+  border: 2px solid #7a5c24;
+  margin-top: -7px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.75);
+}
+
+/* 操作提示 */
+.hints {
+  position: fixed;
+  bottom: max(18px, env(safe-area-inset-bottom, 18px));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  pointer-events: none;
+  z-index: 4;
+  transition: opacity 0.8s ease;
+}
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(18, 13, 9, 0.65);
+  border: 1px solid rgba(234, 185, 72, 0.22);
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 11px;
+  color: var(--ink);
+  backdrop-filter: blur(6px);
+}
+.hint svg {
+  width: 22px;
+  height: 18px;
+  stroke: var(--gold);
+  fill: none;
+  stroke-width: 1.5;
+}
+.hint span { color: var(--sub); font-size: 10px; margin-left: 3px; }
+
+#err {
+  display: none;
+  position: fixed;
+  top: 80px;
+  left: 16px;
+  right: 16px;
+  z-index: 20;
+  background: #4a1313;
+  border: 1px solid #e66;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+}
+
+/* clean=1 純淨展示模式 */
+body.clean header, body.clean #toggle-ui, body.clean #drawer, body.clean .hints {
+  display: none !important;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="err"></div>
+
+<header>
+  <small>3D PAPER CUT LIGHT BOX</small>
+  <h1>北海道大學・銀杏並木大道</h1>
+</header>
+
+<button id="toggle-ui" aria-label="設定面板" title="展開控制面板">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+    <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor"/>
+    <line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor"/>
+    <line x1="4" y1="18" x2="20" y2="18"/><circle cx="11" cy="18" r="2" fill="currentColor"/>
+  </svg>
+</button>
+
+<aside id="drawer" class="collapsed">
+  <div class="grp">
+    <div class="grp-head"><span>層次展開 (Exploded View)</span><span class="val" id="ex-val">0%</span></div>
+    <input id="ex" type="range" min="0" max="100" value="0">
+  </div>
+  <div class="grp">
+    <div class="grp-head"><span>燈光氛圍</span></div>
+    <div class="modes" id="modes">
+      <button class="chip on" data-k="autumn">暖金秋陽</button>
+      <button class="chip" data-k="sunset">黃昏暮光</button>
+      <button class="chip" data-k="moon">月夜銀杏</button>
+      <button class="chip" data-k="unlit">素胚檢視</button>
+    </div>
+  </div>
+  <div class="grp">
+    <div class="grp-head"><span>背光亮度</span><span class="val" id="br-val">100%</span></div>
+    <input id="br" type="range" min="0.4" max="1.8" step="0.05" value="1">
+  </div>
+  <div class="grp">
+    <div class="grp-head"><span>快速視角</span></div>
+    <div class="views">
+      <button class="chip" id="v-side">側面看層次</button>
+      <button class="chip" id="v-reset">正面重設</button>
+    </div>
+  </div>
+</aside>
+
+<div class="hints" id="hints">
+  <div class="hint">
+    <svg viewBox="0 0 28 20"><ellipse cx="14" cy="12" rx="11" ry="4.5"/><path d="M23 9l2.5 3-3.5.8"/></svg>
+    <div>單指旋轉<span>Orbit</span></div>
+  </div>
+  <div class="hint">
+    <svg viewBox="0 0 28 20"><path d="M9 14L4 10l5-4M19 6l5 4-5 4"/></svg>
+    <div>雙指縮放<span>Zoom</span></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  if (new URLSearchParams(location.search).get('clean') === '1') {
+    document.body.classList.add('clean');
+  }
+
+  var err = document.getElementById('err');
+  function fail(m) {
+    err.style.display = 'block';
+    err.textContent = '3D 提示：' + m;
+  }
+  if (!window.THREE) {
+    fail('Three.js 未能載入，請檢查網路後重新整理。');
+    return;
+  }
+
+  try {
+    // 確定性亂數產生器，保證每次開啟構圖與落葉位置一致
+    var seed = 20261127;
+    function R() {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    }
+    function L(a, b, t) { return a + (b - a) * t; }
+
+    // 提高貼圖解析度以展現紙雕微細葉脈與邊緣銳利度
+    var W = 600, H = 800, PW = 7.1, PH = 9.5;
+
+    // ---------- 紙雕繪圖工具 ----------
+    function cv() {
+      var c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      return c;
+    }
+    function gray(l) {
+      l = Math.max(0, Math.min(255, l | 0));
+      return 'rgb(' + l + ',' + l + ',' + l + ')';
+    }
+
+    // 繪製細緻銀杏扇葉（含雙裂缺口與放射葉脈）
+    function fan(g, x, y, s, rot, l) {
+      g.save();
+      g.translate(x, y);
+      g.rotate(rot);
+      // 葉柄
+      g.strokeStyle = gray(Math.max(40, l - 45));
+      g.lineWidth = Math.max(1, s * 0.05);
+      g.beginPath();
+      g.moveTo(0, s * 0.05);
+      g.lineTo(0, s * 0.34);
+      g.stroke();
+
+      // 扇形葉片主體
+      g.fillStyle = gray(l);
+      g.beginPath();
+      g.moveTo(0, s * 0.14);
+      g.arc(0, 0, s, -0.92 * Math.PI, -0.53 * Math.PI);
+      g.lineTo(0, -s * 0.56);
+      g.arc(0, 0, s, -0.47 * Math.PI, -0.08 * Math.PI);
+      g.closePath();
+      g.fill();
+
+      // 放射狀葉脈壓痕
+      g.strokeStyle = 'rgba(0,0,0,0.22)';
+      g.lineWidth = 0.9;
+      for (var i = 0; i < 7; i++) {
+        var a = -0.86 * Math.PI + i * 0.13 * Math.PI;
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.lineTo(Math.cos(a) * s * 0.88, Math.sin(a) * s * 0.88);
+        g.stroke();
+      }
+      g.restore();
+    }
+
+    // 雕刻隨機透光葉隙（修正雙側座標範圍）
+    function holes(g, n, x0, x1, y0, y1, sz) {
+      g.save();
+      g.globalCompositeOperation = 'destination-out';
+      g.fillStyle = '#000';
+      for (var i = 0; i < n; i++) {
+        g.beginPath();
+        g.ellipse(
+          L(x0, x1, R()),
+          L(y0, y1, R()),
+          sz * (0.75 + R() * 0.75),
+          sz * 0.34,
+          R() * Math.PI,
+          0,
+          Math.PI * 2
+        );
+        g.fill();
+      }
+      g.restore();
+    }
+
+    // 漸細弧形樹枝
+    function limb(g, x1, y1, x2, y2, w, l) {
+      var mx = (x1 + x2) / 2 + (y2 - y1) * 0.13;
+      var my = (y1 + y2) / 2 - (x2 - x1) * 0.13;
+      var n = 36, Lp = [], Rp = [];
+      g.fillStyle = gray(l);
+      for (var i = 0; i <= n; i++) {
+        var u = i / n, a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
+        var px = a * x1 + b * mx + c * x2;
+        var py = a * y1 + b * my + c * y2;
+        var dx = 2 * (1 - u) * (mx - x1) + 2 * u * (x2 - mx);
+        var dy = 2 * (1 - u) * (my - y1) + 2 * u * (y2 - my);
+        var d = Math.hypot(dx, dy) || 1;
+        var hw = Math.max(1.4, w * (1 - u * 0.72)) / 2;
+        Lp.push([px - (dy / d) * hw, py + (dx / d) * hw]);
+        Rp.push([px + (dy / d) * hw, py - (dx / d) * hw]);
+      }
+      g.beginPath();
+      g.moveTo(Lp[0][0], Lp[0][1]);
+      for (i = 1; i <= n; i++) g.lineTo(Lp[i][0], Lp[i][1]);
+      for (i = n; i >= 0; i--) g.lineTo(Rp[i][0], Rp[i][1]);
+      g.closePath();
+      g.fill();
+    }
+
+    // 遊客剪影（支援背包客、情侶牽手、裙裝與相機姿勢）
+    function person(g, x, yb, h, l, skirt, cameraPose) {
+      g.fillStyle = gray(l);
+      var w = h * 0.21;
+      g.beginPath();
+      g.arc(x, yb - h * 0.9, h * 0.075, 0, Math.PI * 2);
+      g.fill();
+      g.beginPath();
+      g.moveTo(x - w * 0.5, yb - h * 0.8);
+      g.lineTo(x + w * 0.5, yb - h * 0.8);
+      if (skirt) {
+        g.lineTo(x + w * 0.86, yb - h * 0.36);
+        g.lineTo(x - w * 0.86, yb - h * 0.36);
+      } else {
+        g.lineTo(x + w * 0.45, yb - h * 0.42);
+        g.lineTo(x - w * 0.45, yb - h * 0.42);
+      }
+      g.closePath();
+      g.fill();
+      g.fillRect(x - w * 0.38, yb - h * 0.42, w * 0.33, h * 0.42);
+      g.fillRect(x + w * 0.05, yb - h * 0.42, w * 0.33, h * 0.42);
+
+      if (cameraPose) {
+        // 舉起雙手拿相機拍攝銀杏大道
+        g.fillRect(x + w * 0.25, yb - h * 0.84, w * 0.72, h * 0.055);
+        g.fillRect(x + w * 0.75, yb - h * 0.88, w * 0.34, h * 0.07);
+      }
+    }
+
+    // ---------- 9 層同心透視紙雕建構 ----------
+    // 第 0 層：最外前景窗框、垂落銀杏葉簇、底部銀杏落葉毯與右側木樁麻繩護欄
+    function frameLayer() {
+      var c = cv(), g = c.getContext('2d');
+      g.fillStyle = gray(58);
+      g.fillRect(0, 0, W, H);
+      g.clearRect(W * 0.035, H * 0.03, W * 0.93, H * 0.94);
+
+      for (var i = 0; i < 190; i++) {
+        var s = R();
+        var x = s * W * 0.36 * R() + 6;
+        var y = R() * H * 0.43 * (1.1 - s * 0.5) + 8;
+        fan(g, x, y, L(34, 68, R()), (R() - 0.5) * 2.2 + 0.5, L(205, 255, R()));
+        fan(g, W - x, y, L(34, 68, R()), (R() - 0.5) * 2.2 - 0.5, L(205, 255, R()));
+      }
+      holes(g, 65, 10, W * 0.34, 14, H * 0.39, 8.5);
+      holes(g, 65, W * 0.66, W - 10, 14, H * 0.39, 8.5);
+
+      // 底部厚實銀杏落葉地毯
+      for (i = 0; i < 140; i++) {
+        fan(g, W * 0.04 + R() * W * 0.92, H * 0.948 + R() * H * 0.045, L(18, 34, R()), R() * 6.3, L(195, 255, R()));
+      }
+      // 右下角木樁與麻繩護欄
+      g.fillStyle = gray(115);
+      [[0.79, 0.90], [0.87, 0.88], [0.95, 0.86]].forEach(function (p) {
+        g.fillRect(W * p[0], H * p[1], 11, H * 0.11);
+      });
+      limb(g, W * 0.79, H * 0.915, W * 0.95, H * 0.89, 5, 115);
+      return c;
+    }
+
+    // 第 1 ~ 6 層：線性透視收斂的銀杏大道樹幹、Y字大枝、錯落葉叢與校園地標
+    function treeLayer(k) {
+      var c = cv(), g = c.getContext('2d');
+      var t = (k - 1) / 5;
+      var off = L(0.40, 0.075, t) * W;
+      var tw = L(0.165, 0.03, t) * W;
+      var fork = H * L(0.63, 0.50, t);
+      var roadY = H * L(0.89, 0.64, t);
+      var sz = L(54, 21, t);
+      var n = Math.round(L(105, 30, t));
+
+      // 1. 先繪製左右兩側錯落的銀杏葉叢
+      [-1, 1].forEach(function (s) {
+        for (var i = 0; i < n; i++) {
+          var x = W / 2 + s * off * L(-0.18, 1.45, R());
+          x = Math.max(10, Math.min(W - 10, x));
+          var y = H * (0.05 + R() * L(0.49, 0.39, t));
+          fan(g, x, y, sz * (0.78 + R() * 0.52), (R() - 0.5) * 2.3, L(210, 255, R()));
+        }
+      });
+
+      // 2. 精準對稱雕刻左右樹冠的隨機透光細縫（外層明顯、內層細微）
+      var holeCount = Math.round(145 * (1 - 0.45 * t));
+      var holeSize = sz * L(0.24, 0.16, t);
+      holes(g, holeCount, 12, W * 0.48, H * 0.05, fork - 8, holeSize);
+      holes(g, holeCount, W * 0.52, W - 12, H * 0.05, fork - 8, holeSize);
+
+      // 3. 道路路緣、落葉坡地、矮主樹幹與提早分岔的 Y 字形主枝
+      [-1, 1].forEach(function (s) {
+        var cx = W / 2 + s * off;
+        // 道路兩側落葉坡地與緣石陰影
+        g.fillStyle = gray(L(132, 148, t));
+        g.beginPath();
+        g.moveTo(s < 0 ? 0 : W, roadY);
+        g.lineTo(W / 2 + s * (off - tw * 0.22), roadY + H * 0.02);
+        g.lineTo(W / 2 + s * (off - tw * 0.22), H);
+        g.lineTo(s < 0 ? 0 : W, H);
+        g.fill();
+
+        // 路緣石壓線
+        g.strokeStyle = gray(92);
+        g.lineWidth = Math.max(1.5, 4 * (1 - t * 0.6));
+        g.beginPath();
+        g.moveTo(s < 0 ? 0 : W, roadY);
+        g.lineTo(W / 2 + s * (off - tw * 0.22), roadY + H * 0.02);
+        g.stroke();
+
+        // 矮主樹幹
+        g.fillStyle = gray(98);
+        g.beginPath();
+        g.moveTo(cx - tw * 0.72, H);
+        g.lineTo(cx + tw * 0.72, H);
+        g.quadraticCurveTo(cx + tw * 0.3, H * 0.8, cx + tw * 0.4, fork);
+        g.lineTo(cx - tw * 0.4, fork);
+        g.quadraticCurveTo(cx - tw * 0.3, H * 0.8, cx - tw * 0.72, H);
+        g.fill();
+
+        // 樹皮縱向紋理雕刻線
+        g.strokeStyle = 'rgba(0,0,0,0.3)';
+        g.lineWidth = 1.4;
+        for (var i = 0; i < Math.round(14 * (1 - t * 0.6)); i++) {
+          var bx = cx + (R() - 0.5) * tw * 1.1;
+          g.beginPath();
+          g.moveTo(bx, H);
+          g.lineTo(bx + (R() - 0.5) * 10, fork + R() * H * 0.1);
+          g.stroke();
+        }
+
+        // 低處分岔的 Y 字形主枝伸入上方樹冠
+        limb(g, cx, fork + 8, W / 2 + s * off * 0.1, H * L(0.24, 0.20, t), tw * 0.42, 98);
+        limb(g, cx, fork + 8, W / 2 + s * off * 0.65, H * L(0.12, 0.14, t), tw * 0.36, 98);
+        limb(g, cx, fork + 8, W / 2 + s * off * 1.45, H * L(0.20, 0.22, t), tw * 0.34, 98);
+      });
+
+      // 4. 各層專屬北大校園地標與遊客
+      if (k === 1) {
+        // 「お願い / Notice to Visitors」北海道大學校園導覽地圖告示牌 + 持相機遊客
+        g.fillStyle = gray(115);
+        g.fillRect(W * 0.075, H * 0.83, 6, H * 0.12);
+        g.fillRect(W * 0.235, H * 0.83, 6, H * 0.12);
+        g.fillStyle = gray(242);
+        g.fillRect(W * 0.05, H * 0.72, W * 0.20, H * 0.22);
+        g.fillStyle = gray(145);
+        g.fillRect(W * 0.06, H * 0.78, W * 0.18, H * 0.07);
+        g.fillStyle = gray(185);
+        g.fillRect(W * 0.06, H * 0.735, W * 0.18, H * 0.03);
+        g.fillStyle = gray(85);
+        for (var q = 0; q < 4; q++) g.fillRect(W * 0.065, H * 0.865 + q * 12, W * 0.13 - q * 7, 3.5);
+        person(g, W * 0.30, H * 0.985, H * 0.20, 18, false, true);
+      }
+      if (k === 2) {
+        // 「25」速限與「禁止停車」雙圓標誌 + 右側牽手情侶
+        g.fillStyle = gray(115);
+        g.fillRect(W * 0.29, H * 0.56, 7, H * 0.30);
+        g.fillStyle = gray(245);
+        g.beginPath(); g.arc(W * 0.293, H * 0.585, 23, 0, Math.PI * 2); g.fill();
+        g.lineWidth = 6; g.strokeStyle = gray(105); g.stroke();
+        g.fillStyle = gray(55); g.font = 'bold 22px sans-serif'; g.textAlign = 'center';
+        g.fillText('25', W * 0.293, H * 0.585 + 7);
+
+        g.fillStyle = gray(148);
+        g.beginPath(); g.arc(W * 0.293, H * 0.65, 23, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = gray(88); g.stroke();
+        g.beginPath(); g.moveTo(W * 0.293 - 15, H * 0.65 - 15); g.lineTo(W * 0.293 + 15, H * 0.65 + 15); g.stroke();
+
+        g.fillStyle = gray(242);
+        g.fillRect(W * 0.293 - 27, H * 0.69, 54, 18);
+        g.fillStyle = gray(45); g.font = 'bold 13px sans-serif';
+        g.fillText('禁止停車', W * 0.293, H * 0.69 + 13);
+
+        person(g, W * 0.62, H * 0.90, H * 0.20, 18, false, false);
+        person(g, W * 0.66, H * 0.90, H * 0.185, 18, true, false);
+        g.strokeStyle = gray(18); g.lineWidth = 3.5;
+        g.beginPath(); g.moveTo(W * 0.635, H * 0.78); g.lineTo(W * 0.655, H * 0.78); g.stroke();
+      }
+      if (k === 3) {
+        person(g, W * 0.40, H * 0.80, H * 0.11, 22, false, false);
+        person(g, W * 0.43, H * 0.80, H * 0.10, 22, true, false);
+      }
+      if (k === 4) {
+        person(g, W * 0.57, H * 0.74, H * 0.052, 28, false, false);
+      }
+      if (k === 5) {
+        // 遠處道路中央的白色校園服務車剪影
+        g.fillStyle = gray(255);
+        g.fillRect(W * 0.43, H * 0.72, W * 0.10, H * 0.035);
+        g.fillRect(W * 0.46, H * 0.705, W * 0.06, H * 0.02);
+        g.fillStyle = gray(68);
+        g.beginPath();
+        g.arc(W * 0.45, H * 0.757, 5, 0, Math.PI * 2);
+        g.arc(W * 0.52, H * 0.757, 5, 0, Math.PI * 2);
+        g.fill();
+        g.fillRect(W * 0.475, H * 0.71, W * 0.04, H * 0.012);
+      }
+      return c;
+    }
+
+    // 第 7 層：同心圓弧天空框與遠方校舍天際線
+    function skyLayer() {
+      var c = cv(), g = c.getContext('2d'), cy = H * 0.27;
+      g.fillStyle = gray(235);
+      g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = 'destination-out';
+      g.fillStyle = '#000';
+      g.beginPath();
+      g.arc(W / 2, cy, W * 0.31, 0, Math.PI * 2);
+      g.fill();
+      g.fillRect(W / 2 - W * 0.075, cy, W * 0.15, H * 0.56);
+      g.globalCompositeOperation = 'source-over';
+
+      g.fillStyle = gray(148);
+      g.beginPath();
+      g.moveTo(W / 2 - W * 0.2, cy + W * 0.2);
+      [[0.12, 0.04], [0.1, -0.02], [0.06, 0.05], [0.04, -0.03]].forEach(function (p, i) {
+        g.lineTo(W / 2 - W * 0.2 + i * W * 0.1, cy + W * 0.2 - H * p[1] * 0.8);
+      });
+      g.lineTo(W / 2 + W * 0.2, cy + W * 0.2);
+      g.closePath();
+      g.fill();
+      return c;
+    }
+
+    // 第 8 層：LED 發光暖陽背板
+    function glowLayer() {
+      var c = cv(), g = c.getContext('2d'), cy = H * 0.27;
+      var gr = g.createLinearGradient(0, 0, 0, H);
+      gr.addColorStop(0, '#c98a1e');
+      gr.addColorStop(0.4, '#ffd979');
+      gr.addColorStop(0.7, '#fff3c4');
+      gr.addColorStop(1, '#ffc65a');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, W, H);
+
+      var rg = g.createRadialGradient(W / 2, cy, W * 0.05, W / 2, cy, W * 0.3);
+      rg.addColorStop(0, '#ffffff');
+      rg.addColorStop(0.8, '#fffbe8');
+      rg.addColorStop(1, 'rgba(255,240,190,0)');
+      g.fillStyle = rg;
+      g.fillRect(0, 0, W, H);
+
+      var vg = g.createRadialGradient(W / 2, H * 0.6, 12, W / 2, H * 0.6, W * 0.28);
+      vg.addColorStop(0, 'rgba(255,255,235,0.95)');
+      vg.addColorStop(1, 'rgba(255,255,235,0)');
+      g.fillStyle = vg;
+      g.fillRect(0, H * 0.3, W, H * 0.5);
+
+      g.strokeStyle = 'rgba(150,95,20,0.35)';
+      g.lineWidth = 7;
+      [0.36, 0.42].forEach(function (r) {
+        g.beginPath();
+        g.arc(W / 2, cy, W * r, Math.PI, 0);
+        g.stroke();
+      });
+      return c;
+    }
+
+    // 細棉紙微纖維凹凸貼圖（增添真實紙質觸感）
+    var paperBump = (function () {
+      var c = document.createElement('canvas');
+      c.width = c.height = 128;
+      var g = c.getContext('2d');
+      g.fillStyle = '#808080';
+      g.fillRect(0, 0, 128, 128);
+      for (var i = 0; i < 900; i++) {
+        var v = 110 + ((R() * 36) | 0);
+        g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+        g.fillRect(R() * 128, R() * 128, 1 + R() * 2, 1 + R() * 2);
+      }
+      var t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(6, 8);
+      return t;
+    })();
+
+    // ---------- 渲染器與木盒外框 ----------
+    var canvas = document.getElementById('c');
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(36, 1, 0.1, 120);
+    var box = new THREE.Group();
+    scene.add(box);
+
+    var CX = 3.6, CY = 4.8, FT = 0.42, BD = 2.8;
+    var frameMat = new THREE.MeshStandardMaterial({ color: 0x2b1c12, roughness: 0.65, bumpMap: paperBump, bumpScale: 0.008 });
+    var linerMat = new THREE.MeshStandardMaterial({ color: 0x4d3423, roughness: 0.8 });
+    function bar(w, h, d, x, y, z, m) {
+      var o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+      o.position.set(x, y, z);
+      box.add(o);
+    }
+    bar((CX + FT) * 2, FT, BD, 0, CY + FT / 2, 0, frameMat);
+    bar((CX + FT) * 2, FT, BD, 0, -CY - FT / 2, 0, frameMat);
+    bar(FT, CY * 2, BD, -CX - FT / 2, 0, 0, frameMat);
+    bar(FT, CY * 2, BD, CX + FT / 2, 0, 0, frameMat);
+    bar(CX * 2, 0.05, BD, 0, CY - 0.025, 0, linerMat);
+    bar(CX * 2, 0.05, BD, 0, -CY + 0.025, 0, linerMat);
+    bar(0.05, CY * 2, BD, -CX + 0.025, 0, 0, linerMat);
+    bar(0.05, CY * 2, BD, CX - 0.025, 0, 0, linerMat);
+    bar((CX + FT) * 2, (CY + FT) * 2, 0.08, 0, 0, -BD / 2 - 0.04, linerMat);
+
+    // 9 層紙雕卡（加入邊緣線框讓側面展開時看得出紙張厚度）
+    var layers = [], geo = new THREE.PlaneGeometry(PW, PH);
+    var edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(PW, PH, 0.035));
+    for (var k = 0; k < 9; k++) {
+      var cnv = k === 0 ? frameLayer() : k <= 6 ? treeLayer(k) : k === 7 ? skyLayer() : glowLayer();
+      var tex = new THREE.CanvasTexture(cnv);
+      tex.anisotropy = 4;
+      var mat;
+      if (k === 8) {
+        mat = new THREE.MeshBasicMaterial({ map: tex });
+      } else {
+        mat = new THREE.MeshStandardMaterial({
+          map: tex,
+          emissiveMap: tex,
+          bumpMap: paperBump,
+          bumpScale: 0.015,
+          alphaTest: 0.5,
+          side: THREE.DoubleSide,
+          roughness: 0.85
+        });
+      }
+      var m = new THREE.Mesh(geo, mat);
+      var edgeMat = new THREE.LineBasicMaterial({ color: 0xe8c77b, transparent: true, opacity: 0.0 });
+      var edge = new THREE.LineSegments(edgeGeo, edgeMat);
+      m.add(edge);
+      box.add(m);
+      layers.push({ m: m, mat: mat, edgeMat: edgeMat });
+    }
+
+    // 飄落銀杏葉粒子
+    var lt = new THREE.CanvasTexture((function () {
+      var c = document.createElement('canvas');
+      c.width = c.height = 64;
+      var g = c.getContext('2d');
+      fan(g, 32, 50, 34, 0, 255);
+      return c;
+    })());
+    var lmat = new THREE.MeshBasicMaterial({ map: lt, alphaTest: 0.5, side: THREE.DoubleSide, color: 0xe8b938 });
+    var lgeo = new THREE.PlaneGeometry(0.22, 0.22), drift = [];
+    for (var i = 0; i < 28; i++) {
+      var o = new THREE.Mesh(lgeo, lmat), sun = i < 16;
+      drift.push({
+        o: o, sun: sun,
+        x: sun ? (R() - 0.5) * 2.1 : (R() - 0.5) * 5.2,
+        y: sun ? 1.6 + R() * 1.9 : -2 + R() * 5.2,
+        z: sun ? -1.05 + R() * 0.22 : -0.4 + R() * 1.15,
+        v: 0.11 + R() * 0.16,
+        p: R() * 6.3,
+        f: 0.8 + R(),
+        sc: 0.55 + R() * 0.65
+      });
+      box.add(o);
+    }
+
+    var hemi = new THREE.HemisphereLight(0xfff5e4, 0x3b2616, 0.9);
+    var dl = new THREE.DirectionalLight(0xfff7e8, 0.5);
+    dl.position.set(1.8, 2.8, 12);
+    scene.add(hemi, dl);
+
+    // ---------- 燈光氛圍預設 ----------
+    var P = {
+      autumn: { bg: 0x120d09, near: 0xc48e2f, far: 0xffeba3, glow: 0xffb300, lf: 0xe8b938 },
+      sunset: { bg: 0x170e12, near: 0xb3572e, far: 0xffc28c, glow: 0xff6a3d, lf: 0xff8a65 },
+      moon:   { bg: 0x0b0f1a, near: 0x5c71b5, far: 0xdfeaff, glow: 0x6f8cff, lf: 0xffe082 },
+      unlit:  { bg: 0x1b1815, near: 0xe8e3d8, far: 0xf9f6ef, glow: 0x000000, lf: 0xf2efe9 }
+    }, cur = 'autumn', bright = 1;
+
+    function apply() {
+      var p = P[cur], un = cur === 'unlit';
+      var a = new THREE.Color(p.near), b = new THREE.Color(p.far);
+      scene.background = new THREE.Color(p.bg);
+      renderer.toneMappingExposure = un ? 1.12 : bright;
+      layers.forEach(function (l, i) {
+        if (i === 8) {
+          l.mat.color.set(un ? 0xf7f5f0 : p.glow).lerp(new THREE.Color(0xffffff), un ? 0 : 0.6).multiplyScalar(un ? 1 : bright);
+          return;
+        }
+        l.mat.color.copy(a).lerp(b, i / 7);
+        l.mat.emissive.set(p.glow);
+        l.mat.emissiveIntensity = (un || i === 0) ? 0 : (0.18 + i * 0.072) * bright;
+      });
+      lmat.color.set(p.lf);
+    }
+    apply();
+
+    // ---------- 鏡頭與觸控互動 ----------
+    var cam = { rx: 0.03, ry: -0.06, z: 20, trx: 0.03, try_: -0.06, tz: 20 };
+    function baseZ() {
+      var w = innerWidth, h = innerHeight, asp = w / h;
+      var avail = h - 76; // 面板預設收合，釋放更多垂直空間
+      var zh = 10.4 / (2 * Math.tan(18 * Math.PI / 180)) * h / Math.max(240, avail);
+      var zw = 8.1 / (2 * Math.tan(18 * Math.PI / 180) * asp);
+      return Math.max(zh, zw);
+    }
+    function resize() {
+      var w = innerWidth, h = innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      cam.tz = baseZ();
+      if (!cam.init) { cam.z = cam.tz; cam.init = 1; }
+    }
+    function clampT() {
+      cam.try_ = Math.max(-1.35, Math.min(1.35, cam.try_));
+      cam.trx = Math.max(-0.75, Math.min(0.75, cam.trx));
+      cam.tz = Math.max(8, Math.min(34, cam.tz));
+    }
+
+    var pts = {}, pd = 0, pz = 0, hintsEl = document.getElementById('hints');
+    function hideHints() { if (hintsEl) hintsEl.style.opacity = '0'; }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      canvas.setPointerCapture(e.pointerId);
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ks = Object.keys(pts);
+      if (ks.length === 2) {
+        pd = Math.hypot(pts[ks[0]].x - pts[ks[1]].x, pts[ks[0]].y - pts[ks[1]].y);
+        pz = cam.tz;
+      }
+    });
+    canvas.addEventListener('pointermove', function (e) {
+      var p = pts[e.pointerId];
+      if (!p) return;
+      var ks = Object.keys(pts);
+      if (ks.length === 1) {
+        cam.try_ += (e.clientX - p.x) * 0.0075;
+        cam.trx += (e.clientY - p.y) * 0.0065;
+        hideHints();
+      }
+      p.x = e.clientX; p.y = e.clientY;
+      if (ks.length === 2 && pd > 0) {
+        var nd = Math.hypot(pts[ks[0]].x - pts[ks[1]].x, pts[ks[0]].y - pts[ks[1]].y);
+        cam.tz = pz * pd / Math.max(1, nd);
+        hideHints();
+      }
+      clampT();
+    });
+    function up(e) { delete pts[e.pointerId]; pd = 0; }
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      cam.tz += e.deltaY * 0.014;
+      clampT();
+      hideHints();
+    }, { passive: false });
+    canvas.addEventListener('dblclick', resetView);
+
+    function resetView() {
+      cam.trx = 0.03;
+      cam.try_ = -0.06;
+      cam.tz = baseZ();
+    }
+
+    // ---------- UI 控制綁定 ----------
+    var toggleBtn = document.getElementById('toggle-ui');
+    var drawer = document.getElementById('drawer');
+    toggleBtn.addEventListener('click', function () {
+      var isCollapsed = drawer.classList.toggle('collapsed');
+      toggleBtn.classList.toggle('active', !isCollapsed);
+    });
+
+    var ex = document.getElementById('ex'), exVal = document.getElementById('ex-val'), tEx = 0, cEx = 0;
+    ex.addEventListener('input', function () {
+      tEx = ex.value / 100;
+      exVal.textContent = ex.value + '%';
+    });
+
+    var brVal = document.getElementById('br-val');
+    document.getElementById('br').addEventListener('input', function (e) {
+      bright = parseFloat(e.target.value);
+      brVal.textContent = Math.round(bright * 100) + '%';
+      apply();
+    });
+
+    document.getElementById('modes').addEventListener('click', function (e) {
+      var k = e.target.dataset && e.target.dataset.k;
+      if (!k) return;
+      cur = k;
+      apply();
+      [].forEach.call(this.children, function (b) {
+        b.classList.toggle('on', b.dataset.k === k);
+      });
+    });
+
+    document.getElementById('v-side').addEventListener('click', function () {
+      cam.try_ = 0.88;
+      cam.trx = 0.06;
+      tEx = 0.75;
+      ex.value = 75;
+      exVal.textContent = '75%';
+      hideHints();
+    });
+
+    document.getElementById('v-reset').addEventListener('click', function () {
+      resetView();
+      tEx = 0;
+      ex.value = 0;
+      exVal.textContent = '0%';
+    });
+
+    addEventListener('resize', resize);
+    resize();
+
+    // ---------- 主動畫迴圈 ----------
+    var clock = new THREE.Clock();
+    function loop() {
+      requestAnimationFrame(loop);
+      var dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+      cam.rx += (cam.trx - cam.rx) * 0.1;
+      cam.ry += (cam.try_ - cam.ry) * 0.1;
+      cam.z += (cam.tz - cam.z) * 0.1;
+      camera.position.set(0, 0, cam.z);
+      camera.lookAt(0, 0, 0);
+
+      cEx += (tEx - cEx) * 0.1;
+      var step = 0.29 + cEx * 0.78, front = 1.12 + cEx * 3.05;
+      layers.forEach(function (l, i) {
+        l.m.position.z = front - i * step;
+        // 展開層次時浮現紙張金邊輪廓，增強 3D 結構感
+        l.edgeMat.opacity = Math.min(0.45, cEx * 0.65);
+      });
+
+      box.rotation.y = cam.ry + Math.sin(t * 0.55) * 0.025;
+      box.rotation.x = cam.rx + Math.cos(t * 0.4) * 0.012;
+
+      var sp = step / 0.29;
+      drift.forEach(function (d) {
+        d.y -= d.v * dt;
+        if (d.sun && d.y < 1.4) { d.y = 3.4; d.x = (R() - 0.5) * 2.1; }
+        else if (!d.sun && d.y < -4.2) { d.y = 3.8; d.x = (R() - 0.5) * 5.2; }
+        var mx = d.sun ? 1.3 : 3.2;
+        d.o.position.set(
+          Math.max(-mx, Math.min(mx, d.x + Math.sin(t * d.f + d.p) * 0.22)),
+          d.y,
+          front - (1.12 - d.z) * sp
+        );
+        d.o.rotation.set(Math.sin(t * d.f + d.p) * 1.1, t * d.f * 0.7 + d.p, t * d.v * 3);
+        d.o.scale.setScalar(d.sc);
+      });
+      renderer.render(scene, camera);
+    }
+    loop();
+  } catch (e) {
+    fail(e && e.message ? e.message : String(e));
+  }
+})();
+</script>
+</body>
+</html>
